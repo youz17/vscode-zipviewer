@@ -1,18 +1,38 @@
 import * as vscode from "vscode";
 import { ZipManagerRegistry } from "./zipManagerRegistry";
-import { parseZipUri, makeZipUri, normalizeEntryPath, entryParent, entryName } from "./utils";
+import { parseZipUri, makeZipUri, normalizeEntryPath, entryParent, entryName, ZIP_SCHEME_ID } from "./utils";
+import { log } from "./log";
 
 export class ZipFileSystemProvider implements vscode.FileSystemProvider {
   private _onDidChangeFile = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   readonly onDidChangeFile = this._onDidChangeFile.event;
 
   constructor(private registry: ZipManagerRegistry) {
-    registry.onDidRequestReload((archivePath) => {
-      const manager = registry.get(archivePath);
+    registry.onDidRequestReload(async (archivePath) => {
+      log(`reload event: refreshing open documents for [${archivePath}]`);
+
+      // Fire change events for the root
       const events: vscode.FileChangeEvent[] = [
         { type: vscode.FileChangeType.Changed, uri: makeZipUri(archivePath) },
       ];
 
+      // Fire change events using exact URIs from open documents to guarantee match
+      const archiveKey = archivePath.replace(/\\/g, "/").toLowerCase();
+      for (const doc of vscode.workspace.textDocuments) {
+        if (doc.uri.scheme !== ZIP_SCHEME_ID) continue;
+        try {
+          const parsed = parseZipUri(doc.uri);
+          if (parsed.archivePath.replace(/\\/g, "/").toLowerCase() === archiveKey) {
+            events.push({ type: vscode.FileChangeType.Changed, uri: doc.uri });
+            log(`reload event: queued change for ${doc.uri.toString()}`);
+          }
+        } catch {
+          // ignore URIs we can't parse
+        }
+      }
+
+      // Also fire for all entries from the new archive data
+      const manager = registry.get(archivePath);
       if (manager) {
         for (const entry of manager.listEntries()) {
           if (!entry.isDirectory) {
@@ -25,6 +45,32 @@ export class ZipFileSystemProvider implements vscode.FileSystemProvider {
       }
 
       this._onDidChangeFile.fire(events);
+
+      // Force-revert open editors that VSCode may have cached
+      await new Promise((r) => setTimeout(r, 100));
+      for (const doc of vscode.workspace.textDocuments) {
+        if (doc.uri.scheme !== ZIP_SCHEME_ID || doc.isClosed) continue;
+        try {
+          const parsed = parseZipUri(doc.uri);
+          if (parsed.archivePath.replace(/\\/g, "/").toLowerCase() === archiveKey) {
+            const newContent = await this.readFile(doc.uri);
+            const currentContent = doc.getText();
+            const newText = Buffer.from(newContent).toString("utf-8");
+            if (currentContent !== newText) {
+              log(`reload event: content differs, reverting ${doc.uri.toString()}`);
+              const edit = new vscode.WorkspaceEdit();
+              const fullRange = new vscode.Range(
+                doc.positionAt(0),
+                doc.positionAt(currentContent.length)
+              );
+              edit.replace(doc.uri, fullRange, newText);
+              await vscode.workspace.applyEdit(edit);
+            }
+          }
+        } catch {
+          // ignore errors for individual documents
+        }
+      }
     });
   }
 
