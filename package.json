@@ -2,7 +2,7 @@
   "name": "zipviewer",
   "displayName": "Zip Viewer",
   "description": "Open ZIP files (and Office Open XML formats) as virtual folders in VSCode Explorer",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "zipviewer",
   "engines": {
     "vscode": "^1.80.0"
