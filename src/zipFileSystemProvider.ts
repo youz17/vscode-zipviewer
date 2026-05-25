@@ -8,12 +8,23 @@ export class ZipFileSystemProvider implements vscode.FileSystemProvider {
 
   constructor(private registry: ZipManagerRegistry) {
     registry.onDidRequestReload((archivePath) => {
-      this._onDidChangeFile.fire([
-        {
-          type: vscode.FileChangeType.Changed,
-          uri: makeZipUri(archivePath),
-        },
-      ]);
+      const manager = registry.get(archivePath);
+      const events: vscode.FileChangeEvent[] = [
+        { type: vscode.FileChangeType.Changed, uri: makeZipUri(archivePath) },
+      ];
+
+      if (manager) {
+        for (const entry of manager.listEntries()) {
+          if (!entry.isDirectory) {
+            events.push({
+              type: vscode.FileChangeType.Changed,
+              uri: makeZipUri(archivePath, normalizeEntryPath(entry.path)),
+            });
+          }
+        }
+      }
+
+      this._onDidChangeFile.fire(events);
     });
   }
 
