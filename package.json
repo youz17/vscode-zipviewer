@@ -1,0 +1,73 @@
+{
+  "name": "zipviewer",
+  "displayName": "Zip Viewer",
+  "description": "Open ZIP files (and Office Open XML formats) as virtual folders in VSCode Explorer",
+  "version": "0.0.1",
+  "publisher": "zipviewer",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onFileSystem:zip"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "zipviewer.openArchive",
+        "title": "Open as Archive",
+        "category": "Zip Viewer"
+      },
+      {
+        "command": "zipviewer.saveAll",
+        "title": "Save All Changes",
+        "category": "Zip Viewer"
+      },
+      {
+        "command": "zipviewer.closeArchive",
+        "title": "Close Archive",
+        "category": "Zip Viewer"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceExtname =~ /\\.(zip|docx|pptx|xlsx)$/i",
+          "command": "zipviewer.openArchive",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Zip Viewer",
+      "properties": {
+        "zipviewer.additionalExtensions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional file extensions to treat as ZIP archives (e.g. '.jar', '.apk', '.epub')"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}
